@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Application xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			   xmlns:s="library://ns.adobe.com/flex/spark" 
+			   xmlns:mx="library://ns.adobe.com/flex/mx" minWidth="955" minHeight="600" initialize="init()">
+	<fx:Script>
+		<![CDATA[
+			import mx.core.FlexGlobals;
+			
+			import org.osmf.elements.F4MElement;
+			import org.osmf.elements.ProxyElement;
+			import org.osmf.events.MediaPlayerStateChangeEvent;
+			import org.osmf.media.MediaPlayerSprite;
+			import org.osmf.media.URLResource;
+			
+			private var manifestElement:F4MElement;
+			private var manifestPlaying:Boolean;
+			private var onSyncPoint:String;
+			
+			private function init() : void
+			{
+				var url:String = FlexGlobals.topLevelApplication.parameters.url;
+				onSyncPoint = FlexGlobals.topLevelApplication.parameters.onSyncPoint;
+				
+				playDisplay.removeChildren();
+				
+				var mediaPlayerSprite:MediaPlayerSprite = new MediaPlayerSprite();
+				
+				manifestElement = new F4MElement();
+				manifestElement.resource = new URLResource(url);
+				
+				playDisplay.addChild(mediaPlayerSprite);
+				mediaPlayerSprite.x = 0;
+				mediaPlayerSprite.y = 0;
+				mediaPlayerSprite.width = width;
+				mediaPlayerSprite.height = height;
+				mediaPlayerSprite.mediaPlayer.addEventListener(MediaPlayerStateChangeEvent.MEDIA_PLAYER_STATE_CHANGE, onPlayerStateChange);
+				mediaPlayerSprite.media = manifestElement;
+			}
+			
+			public function onPlayerStateChange( event:MediaPlayerStateChangeEvent ) : void
+			{
+				switch(event.state)
+				{
+					case "buffering":
+					case "playing":
+						if(!manifestPlaying)
+						{
+							manifestPlaying = true;
+							trace("Playing");
+							
+							var media:Object = manifestElement;
+							while (media is ProxyElement)
+							{
+								media = (media as ProxyElement).proxiedElement;
+							} 
+							if (media.hasOwnProperty("client") && media["client"]) {
+								media["client"].addHandler( "onMetaData", onMetaData );
+							}
+						}
+						break;
+					
+					case "loading":
+						trace("Loading player");
+						manifestPlaying = false;
+						break;
+					
+					case "playbackError":
+						trace("Player error");
+						break;
+					
+					default:
+						trace("Unhandled player state: " + event.state);
+				}
+			}
+			
+			public function onMetaData( metadata : Object ) : void
+			{
+				if(metadata.hasOwnProperty("objectType") && metadata.objectType == "KalturaSyncPoint")
+				{
+					trace("onSyncPoint [" + onSyncPoint + "]");
+					ExternalInterface.call(onSyncPoint, metadata);
+				}
+			}
+		]]>
+	</fx:Script>
+	<mx:UIComponent id="playDisplay" width="100%" height="100%" visible="true" />
+</s:Application>
